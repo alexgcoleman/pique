@@ -43,16 +43,22 @@ class DataViewport(containers.Container):
         }
     """
     filename: Path
+    frame: pl.LazyFrame
     rows = reactive(1)
+    start_row = reactive(0)
     # this is a hack for number of rows in the table, should be done programatically
     # this takes into account the other vertical elements
     _ROW_OFFSET = -2
 
     def watch_rows(self, old_rows: int, new_rows: int) -> None:
-        self.render_table(num_rows=new_rows)
+        self.render_table()
+
+    def watch_start_row(self, old_start_row: int, new_start_row: int) -> None:
+        self.render_table()
 
     def __init__(self, filename: Path) -> None:
         self.filename = filename
+        self.frame = engine.reader(self.filename)
         super().__init__()
 
     @property
@@ -61,13 +67,14 @@ class DataViewport(containers.Container):
         return table
 
     def compose(self) -> ComposeResult:
-        yield DataTable(zebra_stripes=True)
+        yield DataTable(zebra_stripes=True, cell_padding=1)
 
-    def render_table(self, num_rows: int) -> None:
+    def render_table(self) -> None:
         self.table.clear(columns=True)
-        df = engine.reader(self.filename).head(num_rows)
 
-        cols = df.columns
+        cols = self.frame.columns
+
+        df = self.frame.slice(self.start_row, self.rows).collect()
 
         nulls = {col: df.select(pl.col(col).is_null()) for col in cols}
         styling = {col: DTYPE_STYLE.get(df[col].dtype, DTypeFormat()) for col in cols}
@@ -85,12 +92,15 @@ class DataViewport(containers.Container):
         self.table.add_columns(*cols)
         self.table.add_rows(rows)
 
+    def set_rows_from_height(self, height: int) -> None:
+        self.rows = max(height + self._ROW_OFFSET, 1)
+
     def on_mount(self) -> None:
-        self.num_rows = 1
-        self.render_table(self.num_rows)
+        self.set_rows_from_height(self.content_size.height)
+        self.render_table()
 
     def on_resize(self, event: events.Resize) -> None:
-        self.rows = event.size.height + self._ROW_OFFSET
+        self.set_rows_from_height(event.size.height)
 
 
 class DataPane(containers.Vertical):

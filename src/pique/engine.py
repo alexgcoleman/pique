@@ -5,22 +5,22 @@ from typing import Callable
 
 import polars as pl
 
-Reader = Callable[[Path], pl.DataFrame]
+Reader = Callable[[Path], pl.LazyFrame]
 
 
-def read_csv(path: Path) -> pl.DataFrame:
-    return pl.read_csv(path, try_parse_dates=True)
+def lazy_read_csv(path: Path) -> pl.LazyFrame:
+    return pl.scan_csv(path, try_parse_dates=True)
 
 
-def read_parquet(path: Path) -> pl.DataFrame:
-    return pl.read_parquet(path)
+def lazy_read_parquet(path: Path) -> pl.LazyFrame:
+    return pl.scan_parquet(path)
 
 
-def reader(path: Path) -> pl.DataFrame:
+def reader(path: Path) -> pl.LazyFrame:
     READERS: dict[str, Reader] = {
-        ".csv": read_csv,
-        ".pqt": read_parquet,
-        ".parquet": read_parquet,
+        ".csv": lazy_read_csv,
+        ".pqt": lazy_read_parquet,
+        ".parquet": lazy_read_parquet,
     }
 
     extension = path.suffix.lower()
