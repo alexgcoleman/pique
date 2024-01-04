@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools", "setuptools-scm"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pique"
+authors = [
+    {name = "Alex Coleman"}
+]
+description = "a read-only command line tool for examining data files"
+keywords = ["pique", "piq", "peek", "data", "cli", "parquet", "csv", "viewer"]
+dynamic = ["version"]
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "rich",
+    "polars",
+    "textual",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+namespaces = false
+
+[project.scripts]
+piq = "pique.cli:cli"
+

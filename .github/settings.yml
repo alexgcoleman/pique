@@ -1,0 +1,22 @@
+repository:
+  name: pique
+  description: a read-only command line tool for data files
+  private: false
+  has_issues: true
+  has_wiki: false
+  has_projects: true
+  has_downloads: true
+  default_branch: main
+  allow_squash_merge: false
+  allow_merge_commits: false
+  allow_rebase_merge: true
+
+
+branches:
+  - name: main
+    protection:
+    required_status_checks:
+      strict: true
+      checks: []
+    allow_force_pushes: false
+    allow_deletions: false
