@@ -3,3 +3,4 @@ pdbpp
 pre-commit
 pytest
 ruff
+textual-dev
