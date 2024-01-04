@@ -6,11 +6,10 @@ from typing import Optional, Sequence, Type
 import polars as pl
 from polars import datatypes
 from rich.text import Text
-from textual import events
+from textual import containers, events
 from textual.app import App, ComposeResult
-from textual.containers import Vertical
 from textual.reactive import reactive
-from textual.widgets import DataTable, Static
+from textual.widgets import DataTable, Footer, Static
 
 from . import engine
 
@@ -29,11 +28,28 @@ DTYPE_STYLE: dict[Type, DTypeFormat] = {
 }
 
 
-class DataPane(Vertical):
-    """Pane for displaying tabular data"""
+class Lol(Static):
+    """lol"""
 
+
+class Msg(Static):
+    """Msg"""
+
+
+class DataViewport(containers.Container):
+    DEFAULT_CSS = """
+        DataTable {
+            scrollbar-gutter: stable;
+        }
+    """
     filename: Path
-    content_size_msg = reactive("PENDING")
+    rows = reactive(1)
+    # this is a hack for number of rows in the table, should be done programatically
+    # this takes into account the other vertical elements
+    _ROW_OFFSET = -2
+
+    def watch_rows(self, old_rows: int, new_rows: int) -> None:
+        self.render_table(num_rows=new_rows)
 
     def __init__(self, filename: Path) -> None:
         self.filename = filename
@@ -45,22 +61,21 @@ class DataPane(Vertical):
         return table
 
     def compose(self) -> ComposeResult:
-        yield Static(self.content_size_msg)
         yield DataTable(zebra_stripes=True)
 
-    def render_table(self) -> None:
+    def render_table(self, num_rows: int) -> None:
         self.table.clear(columns=True)
-        df = engine.reader(self.filename).head(400)
+        df = engine.reader(self.filename).head(num_rows)
 
         cols = df.columns
 
         nulls = {col: df.select(pl.col(col).is_null()) for col in cols}
-        styling = {col: DTYPE_STYLE.get(df[col].dtype, Text) for col in cols}
+        styling = {col: DTYPE_STYLE.get(df[col].dtype, DTypeFormat()) for col in cols}
 
         rows = [
             [
                 format_cell(
-                    repr(df[col][row]), fmt=styling[col], is_na=nulls[col].row(row)[0]
+                    df[col][row], fmt=styling[col], is_na=nulls[col].row(row)[0]
                 )
                 for col in cols
             ]
@@ -70,21 +85,42 @@ class DataPane(Vertical):
         self.table.add_columns(*cols)
         self.table.add_rows(rows)
 
+    def on_mount(self) -> None:
+        self.num_rows = 1
+        self.render_table(self.num_rows)
+
+    def on_resize(self, event: events.Resize) -> None:
+        self.rows = event.size.height + self._ROW_OFFSET
+
+
+class DataPane(containers.Vertical):
+    """Pane for displaying tabular data"""
+
+    filename: Path
+    content_size_msg = reactive("PENDING")
+
+    def __init__(self, filename: Path) -> None:
+        self.filename = filename
+        super().__init__()
+
+    def compose(self) -> ComposeResult:
+        yield Msg("MESSAGE")
+        yield DataViewport(filename=self.filename)
+        yield Lol("lololol")
+
     def render_msg(self) -> None:
         self.content_size_msg = f"size = {self.content_size}"
         self.display_content_size()
 
     def on_mount(self) -> None:
-        self.render_table()
         self.render_msg()
-        self.render_table()
 
     def display_content_size(self) -> None:
-        msg = self.query_one(Static)
+        msg = self.query_one(Msg)
         msg.update(self.content_size_msg)
 
     def on_resize(self, event: events.Resize) -> None:
-        self.content_size_msg = f"size = {event.size}"
+        self.content_size_msg = f"size = {event.size.height}"
         self.display_content_size()
 
 
@@ -100,6 +136,7 @@ class Pique(App):
     def compose(self) -> ComposeResult:
         """Create child widgets for the app."""
         yield DataPane(filename=self.filename)
+        yield Footer()
 
     def action_toggle_dark(self) -> None:
         """An action to toggle dark mode."""
@@ -131,6 +168,11 @@ def cli() -> None:
     app.run()
 
 
-def format_cell(cell_repr: str, fmt: DTypeFormat, is_na: bool = False) -> Text:
+def format_cell(cell, fmt: DTypeFormat, is_na: bool = False) -> Text:
+    if isinstance(cell, str):
+        cell_repr = repr(cell)
+    else:
+        cell_repr = str(cell)
+
     colour = fmt.colour if not is_na else "gray"
     return Text(cell_repr, style=colour, overflow=fmt.overflow, justify=fmt.justify)
