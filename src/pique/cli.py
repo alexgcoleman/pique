@@ -1,8 +1,10 @@
 import argparse
 from pathlib import Path
 from typing import Optional, Sequence
-from . import engine
+
 from rich import print
+
+from . import engine
 
 
 def valid_filepath(s: str) -> Path:

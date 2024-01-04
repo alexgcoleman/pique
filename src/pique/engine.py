@@ -1,10 +1,9 @@
 """Underlying engine for handling/filtering data"""
 
-import polars as pl
 from pathlib import Path
-
 from typing import Callable
 
+import polars as pl
 
 Reader = Callable[[Path], pl.DataFrame]
 
@@ -19,12 +18,12 @@ def read_parquet(path: Path) -> pl.DataFrame:
 
 def reader(path: Path) -> pl.DataFrame:
     READERS: dict[str, Reader] = {
-        "csv": read_csv,
-        "pqt": read_parquet,
-        "parquet": read_parquet,
+        ".csv": read_csv,
+        ".pqt": read_parquet,
+        ".parquet": read_parquet,
     }
 
-    extension = path.suffix.lower().lstrip(".")
+    extension = path.suffix.lower()
 
     try:
         return READERS[extension](path)
