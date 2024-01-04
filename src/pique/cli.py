@@ -6,8 +6,11 @@ from typing import Optional, Sequence, Type
 import polars as pl
 from polars import datatypes
 from rich.text import Text
+from textual import events
 from textual.app import App, ComposeResult
-from textual.widgets import DataTable, Footer, Static
+from textual.containers import Vertical
+from textual.reactive import reactive
+from textual.widgets import DataTable, Static
 
 from . import engine
 
@@ -26,21 +29,28 @@ DTYPE_STYLE: dict[Type, DTypeFormat] = {
 }
 
 
-class DataPane(Static):
+class DataPane(Vertical):
     """Pane for displaying tabular data"""
 
     filename: Path
+    content_size_msg = reactive("PENDING")
 
-    def __init__(self, filename: Path, *args, **kwargs) -> None:
+    def __init__(self, filename: Path) -> None:
         self.filename = filename
-        super().__init__(*args, **kwargs)
+        super().__init__()
+
+    @property
+    def table(self) -> DataTable:
+        table = self.query_one(DataTable)
+        return table
 
     def compose(self) -> ComposeResult:
-        """Create child widgets of a stopwatch."""
-        yield DataTable()
+        yield Static(self.content_size_msg)
+        yield DataTable(zebra_stripes=True)
 
-    def on_mount(self) -> None:
-        df = engine.reader(self.filename).head(80)
+    def render_table(self) -> None:
+        self.table.clear(columns=True)
+        df = engine.reader(self.filename).head(400)
 
         cols = df.columns
 
@@ -57,13 +67,28 @@ class DataPane(Static):
             for row in range(len(df))
         ]
 
-        table = self.query_one(DataTable)
-        table.add_columns(*cols)
-        table.add_rows(rows)
+        self.table.add_columns(*cols)
+        self.table.add_rows(rows)
+
+    def render_msg(self) -> None:
+        self.content_size_msg = f"size = {self.content_size}"
+        self.display_content_size()
+
+    def on_mount(self) -> None:
+        self.render_table()
+        self.render_msg()
+        self.render_table()
+
+    def display_content_size(self) -> None:
+        msg = self.query_one(Static)
+        msg.update(self.content_size_msg)
+
+    def on_resize(self, event: events.Resize) -> None:
+        self.content_size_msg = f"size = {event.size}"
+        self.display_content_size()
 
 
 class Pique(App):
-    BINDINGS = [("d", "toggle_dark", "Toggle dark mode")]
     filename: Path
     dark: bool
 
@@ -75,7 +100,6 @@ class Pique(App):
     def compose(self) -> ComposeResult:
         """Create child widgets for the app."""
         yield DataPane(filename=self.filename)
-        yield Footer()
 
     def action_toggle_dark(self) -> None:
         """An action to toggle dark mode."""
