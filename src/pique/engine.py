@@ -2,10 +2,8 @@
 
 import polars as pl
 from pathlib import Path
-from rich import print
 
 from typing import Callable
-from enum import Enum
 
 
 Reader = Callable[[Path], pl.DataFrame]
