@@ -24,4 +24,3 @@ namespaces = false
 
 [project.scripts]
 piq = "pique.cli:cli"
-
