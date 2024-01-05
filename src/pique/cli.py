@@ -36,12 +36,18 @@ class Msg(Static):
     """Msg"""
 
 
-class DataViewport(containers.Container):
+class PiqueTable(DataTable):
+    """DataTable with different bindings + will be putting custom scrolling logic
+    here to work with the data lazy loading"""
+
     DEFAULT_CSS = """
-        DataTable {
+        PiqueTable {
             scrollbar-gutter: stable;
         }
-    """
+    """  # need stable gutter to avoid weird off-by-one error
+
+
+class DataViewport(containers.Container):
     filename: Path
     frame: pl.LazyFrame
     rows = reactive(1)
@@ -63,12 +69,12 @@ class DataViewport(containers.Container):
         super().__init__()
 
     @property
-    def table(self) -> DataTable:
-        table = self.query_one(DataTable)
+    def table(self) -> PiqueTable:
+        table = self.query_one(PiqueTable)
         return table
 
     def compose(self) -> ComposeResult:
-        yield DataTable(zebra_stripes=True, cell_padding=1)
+        yield PiqueTable(zebra_stripes=True, cell_padding=1)
 
     def render_table(self) -> None:
         self.table.clear(columns=True)
