@@ -29,10 +29,6 @@ DTYPE_STYLE: dict[Type, DTypeFormat] = {
 }
 
 
-class Lol(Static):
-    """lol"""
-
-
 class Msg(Static):
     """Msg"""
 
@@ -84,6 +80,7 @@ class DataViewport(containers.Container):
         return table
 
     def compose(self) -> ComposeResult:
+        yield Msg("PENDING")
         yield PiqueTable(zebra_stripes=True, cell_padding=1)
 
     def render_table(self) -> None:
@@ -109,6 +106,13 @@ class DataViewport(containers.Container):
         self.table.add_columns(*cols)
         self.table.add_rows(rows)
 
+        msg = self.query_one(Msg)
+        msg.update(self.table.CellSelected.handler_name)
+
+    def render_cursor_msg(self) -> None:
+        msg = f"Cursor: {self.table.cursor_coordinate}"
+        self.query_one(Msg).update(msg)
+
     def calc_rows_for_viewport_height(self, height: int | None = None):
         """Determines number of rows that would fit inside the viewport given a
         height."""
@@ -121,6 +125,12 @@ class DataViewport(containers.Container):
         self.rows = self.calc_rows_for_viewport_height()
         self.render_table()
         self.table.focus()
+
+    def on_data_table_cell_selected(self, event: DataTable.CellSelected):
+        self.render_cursor_msg()
+
+    def on_data_table_cell_highlighted(self, event: DataTable.CellHighlighted):
+        self.render_cursor_msg()
 
     def on_resize(self, event: events.Resize) -> None:
         self.rows = self.calc_rows_for_viewport_height(event.size.height)
