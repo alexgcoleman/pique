@@ -10,7 +10,7 @@ from textual import containers, events
 from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.reactive import reactive
-from textual.widgets import DataTable, Footer, Static
+from textual.widgets import DataTable, Static
 
 from .engine import Engine
 
@@ -245,11 +245,6 @@ class Pique(App):
     def compose(self) -> ComposeResult:
         """Create child widgets for the app."""
         yield DataViewport(filename=self.filename)
-        yield Footer()
-
-    def action_toggle_dark(self) -> None:
-        """An action to toggle dark mode."""
-        self.dark = not self.dark
 
 
 def valid_filepath(s: str) -> Path:
