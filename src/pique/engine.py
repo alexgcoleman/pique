@@ -1,5 +1,6 @@
 """Underlying engine for handling/filtering data"""
 
+from logging import getLogger
 from pathlib import Path
 from typing import Callable, OrderedDict
 
@@ -8,7 +9,9 @@ import polars as pl
 Reader = Callable[[Path], pl.LazyFrame]
 
 
-_DEFAULT_CACHED_ROWS = 2000
+_DEFAULT_CACHED_ROWS = 300
+
+log = getLogger(__name__)
 
 
 class CachedData:
@@ -27,15 +30,15 @@ class CachedData:
 
     @property
     def cached_row_end(self) -> int:
-        return self.cached_row_start + self.num_cached_rows - 1
+        return self.cached_row_start + self.num_cached_rows
 
     def is_row_in_cache(self, row_idx: int) -> bool:
-        return (row_idx >= self.cached_row_start) and (row_idx < self.cached_row_end)
+        return (row_idx >= self.cached_row_start) and (row_idx <= self.cached_row_end)
 
     def is_slice_in_cache(self, offset: int, length: int) -> bool:
         start_in_cache = self.is_row_in_cache(offset)
 
-        end_in_cache = self.is_row_in_cache(offset + length - 1)
+        end_in_cache = self.is_row_in_cache(offset + length)
         return start_in_cache and end_in_cache
 
     def cache_start_for_row(self, row: int) -> int:
@@ -48,19 +51,31 @@ class CachedData:
         self.cached_row_start = cached_row_start or self.cached_row_start
         self.num_cached_rows = num_cached_rows or self.num_cached_rows
 
+        log.info(f"UPDATE CACHE: {self.cached_row_start=}, {self.num_cached_rows=}")
         self.data = self.lazy_frame.slice(
             offset=self.cached_row_start, length=self.num_cached_rows
         ).collect()
 
     def cache_relative_offset(self, offset: int) -> int:
         """Calculates a cache-relative offset from a frame-relative offset"""
-        return offset % self.num_cached_rows
+        return offset - self.cached_row_start
 
     def view_slice(self, offset: int, length: int) -> pl.DataFrame:
+        log.info(f"VIEW_SLICE {offset=}, {length=}")
         if not self.is_slice_in_cache(offset=offset, length=length):
-            # cache miss
-            self.update_cache(cached_row_start=self.cache_start_for_row(offset))
+            log.warn(
+                f"CACHE MISS: {offset=}, {length=}, {self.cached_row_start=}, {self.num_cached_rows=}"
+            )
+            # cache miss - ensure we cache at least the lenght of the requested slice
+            self.num_cached_rows = max(self.num_cached_rows, length * 2)
+            self.update_cache(
+                cached_row_start=self.cache_start_for_row(offset),
+            )
 
+        log.info(
+            f"CACHE HIT: {offset=}, {length=}, {self.cached_row_start=}, {self.num_cached_rows=}"
+        )
+        log.info(f"RELATIVE_OFFSET: {self.cache_relative_offset(offset)=}")
         return self.data.slice(offset=self.cache_relative_offset(offset), length=length)
 
 

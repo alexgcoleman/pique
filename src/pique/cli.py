@@ -73,6 +73,7 @@ class DataViewport(containers.Container):
         self.render_table_rows()
 
     def watch_start_row(self, old_start_row: int, new_start_row: int) -> None:
+        self.log(f"{old_start_row=}, {new_start_row=}")
         self.render_table_rows()
 
     def __init__(self, filename: Path) -> None:
@@ -168,6 +169,12 @@ class DataViewport(containers.Container):
         cursor_col = self.table.cursor_coordinate.column
         self.start_row = self.max_start_row
         self.table.move_cursor(row=self.page_size, column=cursor_col)
+
+    def action_top(self) -> None:
+        """Move cursor and viewport to the top"""
+        cursor_col = self.table.cursor_coordinate.column
+        self.start_row = 0
+        self.table.move_cursor(row=0, column=cursor_col)
 
     def action_cursor_up(self) -> None:
         """Move cursor up, if we are at the top of the page, move start rown up"""
