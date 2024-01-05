@@ -76,6 +76,8 @@ class DataViewport(containers.Container):
     def __init__(self, filename: Path) -> None:
         self.filename = filename
         self.frame = engine.reader(self.filename)
+        self.data_rows = self.frame.select(pl.count()).collect().item()
+
         super().__init__()
 
     @property
@@ -119,15 +121,24 @@ class DataViewport(containers.Container):
         self.table.add_rows(rows)
 
     def render_cursor_msg(self) -> None:
-        msg = f"Cursor: {self.table.cursor_coordinate}; StartRow: {self.start_row}; NumRows: {self.calc_rows_for_viewport_height()}"
+        msg = (
+            f"Cursor: {self.table.cursor_coordinate}; "
+            f"StartRow: {self.start_row}; "
+            f"NumRows: {self.page_size}; "
+            f"DataRows: {self.data_rows}; "
+        )
         self.query_one(Msg).update(msg)
 
-    def calc_rows_for_viewport_height(self):
+    def calc_rows_for_viewport_height(self) -> int:
         """Determines number of rows that would fit inside the viewport given a
         height."""
         height = self.content_size.height
 
         return max(height + self._ROW_HEIGHT_OFFSET, 1)
+
+    @property
+    def page_size(self) -> int:
+        return self.calc_rows_for_viewport_height()
 
     def on_mount(self) -> None:
         self.rows = self.calc_rows_for_viewport_height()
@@ -156,7 +167,7 @@ class DataViewport(containers.Container):
 
     def action_cursor_down(self) -> None:
         """Move cursor down, if we are at the bottom of the page, move start rown down"""
-        max_row_coord = self.calc_rows_for_viewport_height() - 1
+        max_row_coord = self.page_size - 1
         if self.table.cursor_coordinate.row >= max_row_coord:
             # scrolls the veiw down if we are already at the bottom
             # don't need to worry about going over the number of rows in the frame,
@@ -177,10 +188,30 @@ class DataViewport(containers.Container):
         self.table.action_cursor_right()
 
     def action_page_up(self) -> None:
-        self.table.action_page_up()
+        """Move the viewport if we are not at the top, otherwise move the cursor
+        to the top"""
+        cursor_coord = self.table.cursor_coordinate
+
+        if self.start_row > 0:
+            # Moving viewport, preserve the relative cursor postition
+            self.start_row = max(self.start_row - self.page_size + 1, 0)
+            self.table.move_cursor(row=cursor_coord.row, column=cursor_coord.column)
+        else:
+            self.table.action_page_up()
 
     def action_page_down(self) -> None:
-        self.table.action_page_down()
+        """Move the viewport if we are not at the bottom, otherwise move the cursor
+        to the bottom"""
+        cursor_coord = self.table.cursor_coordinate
+
+        max_start_row = self.data_rows - self.page_size
+
+        if self.start_row < max_start_row:
+            # Moving viewport, preserve the relative cursor postition
+            self.start_row = min(self.start_row + self.page_size - 1, max_start_row)
+            self.table.move_cursor(row=cursor_coord.row, column=cursor_coord.column)
+        else:
+            self.table.action_page_down()
 
 
 class Pique(App):
