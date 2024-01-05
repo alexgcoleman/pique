@@ -12,7 +12,7 @@ from textual.binding import Binding
 from textual.reactive import reactive
 from textual.widgets import DataTable, Footer, Static
 
-from . import engine
+from .engine import Engine
 
 
 @dataclass
@@ -50,7 +50,7 @@ class PiqueTable(DataTable):
 
 class DataViewport(containers.Container):
     filename: Path
-    frame: pl.LazyFrame
+    engine: Engine
     rows = reactive(1)
     start_row = reactive(0)
 
@@ -77,8 +77,7 @@ class DataViewport(containers.Container):
 
     def __init__(self, filename: Path) -> None:
         self.filename = filename
-        self.frame = engine.reader(self.filename)
-        self.data_rows = self.frame.select(pl.count()).collect().item()
+        self.engine = Engine(filepath=self.filename)
 
         super().__init__()
 
@@ -94,7 +93,7 @@ class DataViewport(containers.Container):
     def render_table_columns(self) -> None:
         self.table.clear(columns=True)
 
-        cols = self.frame.columns
+        cols = self.engine.columns
         self.table.add_columns(*cols)
 
     def render_table_rows(self) -> None:
@@ -103,9 +102,9 @@ class DataViewport(containers.Container):
 
         self.table.clear(columns=False)
 
-        cols = self.frame.columns
+        cols = self.engine.columns
 
-        df = self.frame.slice(self.start_row, self.rows).collect()
+        df = self.engine.view_slice(self.start_row, self.rows)
 
         nulls = {col: df.select(pl.col(col).is_null()) for col in cols}
         styling = {col: DTYPE_STYLE.get(df[col].dtype, DTypeFormat()) for col in cols}
@@ -127,7 +126,7 @@ class DataViewport(containers.Container):
             f"Cursor: {self.table.cursor_coordinate}; "
             f"StartRow: {self.start_row}; "
             f"NumRows: {self.page_size}; "
-            f"DataRows: {self.data_rows}; "
+            f"DataRows: {self.engine.row_count}; "
         )
         self.query_one(Msg).update(msg)
 
@@ -146,7 +145,7 @@ class DataViewport(containers.Container):
     def max_start_row(self) -> int:
         """The maximum start_row, leaves room for a blank row at the bottom to
         indicate the end of data"""
-        return self.data_rows - self.page_size + 1
+        return self.engine.row_count - self.page_size + 1
 
     def on_mount(self) -> None:
         self.rows = self.calc_rows_for_viewport_height()
