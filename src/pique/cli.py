@@ -110,7 +110,7 @@ class DataViewport(containers.Container):
         msg.update(self.table.CellSelected.handler_name)
 
     def render_cursor_msg(self) -> None:
-        msg = f"Cursor: {self.table.cursor_coordinate}"
+        msg = f"Cursor: {self.table.cursor_coordinate}; StartRow: {self.start_row}; NumRows: {self.calc_rows_for_viewport_height()}"
         self.query_one(Msg).update(msg)
 
     def calc_rows_for_viewport_height(self, height: int | None = None):
@@ -136,9 +136,22 @@ class DataViewport(containers.Container):
         self.rows = self.calc_rows_for_viewport_height(event.size.height)
 
     def action_cursor_up(self) -> None:
+        """Move cursor up, if we are at the top of the page, move start rown up"""
+        if self.table.cursor_coordinate.row == 0:
+            col = self.table.cursor_coordinate.column
+            self.start_row = max(self.start_row - 1, 0)
+            self.table.move_cursor(row=0, column=col)
+
         self.table.action_cursor_up()
 
     def action_cursor_down(self) -> None:
+        """Move cursor down, if we are at the bottom of the page, move start rown down"""
+        max_row_coord = self.calc_rows_for_viewport_height() - 1
+        if self.table.cursor_coordinate.row >= max_row_coord:
+            col = self.table.cursor_coordinate.column
+            self.start_row = self.start_row + 1
+            self.table.move_cursor(row=max_row_coord, column=col)
+
         self.table.action_cursor_down()
 
     def action_cursor_left(self) -> None:
@@ -148,10 +161,10 @@ class DataViewport(containers.Container):
         self.table.action_cursor_right()
 
     def action_page_up(self) -> None:
-        self.table.action_cursor_left()
+        self.table.action_page_up()
 
     def action_page_down(self) -> None:
-        self.table.action_cursor_right()
+        self.table.action_page_down()
 
 
 class Pique(App):
