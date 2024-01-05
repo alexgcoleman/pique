@@ -47,7 +47,7 @@ class DataViewport(containers.Container):
     rows = reactive(1)
     start_row = reactive(0)
 
-    _ROW_OFFSET = -2
+    _ROW_HEIGHT_OFFSET = -2
     """Subtract 2 from the container size to get number of rows to display,
     accounts for the table header + horizontal scrollbar"""
 
@@ -93,46 +93,21 @@ class DataViewport(containers.Container):
         self.table.add_columns(*cols)
         self.table.add_rows(rows)
 
-    def set_rows_from_height(self, height: int) -> None:
-        self.rows = max(height + self._ROW_OFFSET, 1)
+    def calc_rows_for_viewport_height(self, height: int | None = None):
+        """Determines number of rows that would fit inside the viewport given a
+        height."""
+        if height is None:
+            height = self.content_size.height
+
+        return max(height + self._ROW_HEIGHT_OFFSET, 1)
 
     def on_mount(self) -> None:
-        self.set_rows_from_height(self.content_size.height)
+        self.rows = self.calc_rows_for_viewport_height()
         self.render_table()
+        self.table.focus()
 
     def on_resize(self, event: events.Resize) -> None:
-        self.set_rows_from_height(event.size.height)
-
-
-class DataPane(containers.Vertical):
-    """Pane for displaying tabular data"""
-
-    filename: Path
-    content_size_msg = reactive("PENDING")
-
-    def __init__(self, filename: Path) -> None:
-        self.filename = filename
-        super().__init__()
-
-    def compose(self) -> ComposeResult:
-        yield Msg("MESSAGE")
-        yield DataViewport(filename=self.filename)
-        yield Lol("lololol")
-
-    def render_msg(self) -> None:
-        self.content_size_msg = f"size = {self.content_size}"
-        self.display_content_size()
-
-    def on_mount(self) -> None:
-        self.render_msg()
-
-    def display_content_size(self) -> None:
-        msg = self.query_one(Msg)
-        msg.update(self.content_size_msg)
-
-    def on_resize(self, event: events.Resize) -> None:
-        self.content_size_msg = f"size = {event.size.height}"
-        self.display_content_size()
+        self.rows = self.calc_rows_for_viewport_height(event.size.height)
 
 
 class Pique(App):
@@ -146,7 +121,7 @@ class Pique(App):
 
     def compose(self) -> ComposeResult:
         """Create child widgets for the app."""
-        yield DataPane(filename=self.filename)
+        yield DataViewport(filename=self.filename)
         yield Footer()
 
     def action_toggle_dark(self) -> None:
