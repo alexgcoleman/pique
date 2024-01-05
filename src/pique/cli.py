@@ -47,19 +47,21 @@ class PiqueTable(DataTable):
         }
     """  # need stable gutter to avoid weird off-by-one error
 
-    BINDINGS = [
-        Binding("up,k", "cursor_up", "Cursor Up", show=True),
-        Binding("down,j", "cursor_down", "Cursor Down", show=True),
-        Binding("left,h", "cursor_left", "Cursor Left", show=True),
-        Binding("right,l", "cursor_right", "Cursor Right", show=True),
-    ]
-
 
 class DataViewport(containers.Container):
     filename: Path
     frame: pl.LazyFrame
     rows = reactive(1)
     start_row = reactive(0)
+
+    BINDINGS = [
+        Binding("k,up", "cursor_up", "Cursor Up", show=True, priority=True),
+        Binding("j,down", "cursor_down", "Cursor Down", show=True, priority=True),
+        Binding("h,left", "cursor_left", "Cursor Left", show=True, priority=True),
+        Binding("l,right", "cursor_right", "Cursor Right", show=True, priority=True),
+        Binding("ctrl+u,pageup", "page_up", "Page Up", show=True, priority=True),
+        Binding("ctrl+d,pagedown", "page_down", "Page Down", show=True, priority=True),
+    ]
 
     _ROW_HEIGHT_OFFSET = -2
     """Subtract 2 from the container size to get number of rows to display,
@@ -122,6 +124,24 @@ class DataViewport(containers.Container):
 
     def on_resize(self, event: events.Resize) -> None:
         self.rows = self.calc_rows_for_viewport_height(event.size.height)
+
+    def action_cursor_up(self) -> None:
+        self.table.action_cursor_up()
+
+    def action_cursor_down(self) -> None:
+        self.table.action_cursor_down()
+
+    def action_cursor_left(self) -> None:
+        self.table.action_cursor_left()
+
+    def action_cursor_right(self) -> None:
+        self.table.action_cursor_right()
+
+    def action_page_up(self) -> None:
+        self.table.action_cursor_left()
+
+    def action_page_down(self) -> None:
+        self.table.action_cursor_right()
 
 
 class Pique(App):
