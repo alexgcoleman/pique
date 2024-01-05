@@ -64,10 +64,10 @@ class DataViewport(containers.Container):
     accounts for the table header + horizontal scrollbar"""
 
     def watch_rows(self, old_rows: int, new_rows: int) -> None:
-        self.render_table()
+        self.render_table_rows()
 
     def watch_start_row(self, old_start_row: int, new_start_row: int) -> None:
-        self.render_table()
+        self.render_table_rows()
 
     def __init__(self, filename: Path) -> None:
         self.filename = filename
@@ -83,8 +83,17 @@ class DataViewport(containers.Container):
         yield Msg("PENDING")
         yield PiqueTable(zebra_stripes=True, cell_padding=1)
 
-    def render_table(self) -> None:
+    def render_table_columns(self) -> None:
         self.table.clear(columns=True)
+
+        cols = self.frame.columns
+        self.table.add_columns(*cols)
+
+    def render_table_rows(self) -> None:
+        if len(self.table.columns) == 0:
+            self.render_table_columns()
+
+        self.table.clear(columns=False)
 
         cols = self.frame.columns
 
@@ -103,11 +112,7 @@ class DataViewport(containers.Container):
             for row in range(len(df))
         ]
 
-        self.table.add_columns(*cols)
         self.table.add_rows(rows)
-
-        msg = self.query_one(Msg)
-        msg.update(self.table.CellSelected.handler_name)
 
     def render_cursor_msg(self) -> None:
         msg = f"Cursor: {self.table.cursor_coordinate}; StartRow: {self.start_row}; NumRows: {self.calc_rows_for_viewport_height()}"
@@ -123,8 +128,10 @@ class DataViewport(containers.Container):
 
     def on_mount(self) -> None:
         self.rows = self.calc_rows_for_viewport_height()
-        self.render_table()
+        self.render_table_columns()
+        self.render_table_rows()
         self.table.focus()
+        self.render_cursor_msg()
 
     def on_data_table_cell_selected(self, event: DataTable.CellSelected):
         self.render_cursor_msg()
