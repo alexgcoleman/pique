@@ -37,11 +37,15 @@ class PiqueTable(DataTable):
     """DataTable with different bindings + will be putting custom scrolling logic
     here to work with the data lazy loading"""
 
+    # need stable gutter to avoid weird off-by-one error due to horizontal scrollbar
+    # TODO: investigate overflow CSS
     DEFAULT_CSS = """
         PiqueTable {
             scrollbar-gutter: stable;
+            overflow-y: auto;
+            overflow-x: auto;
         }
-    """  # need stable gutter to avoid weird off-by-one error
+    """
 
 
 class DataViewport(containers.Container):
@@ -59,9 +63,9 @@ class DataViewport(containers.Container):
         Binding("ctrl+d,pagedown", "page_down", "Page Down", show=True, priority=True),
     ]
 
-    _ROW_HEIGHT_OFFSET = -2
-    """Subtract 2 from the container size to get number of rows to display,
-    accounts for the table header + horizontal scrollbar"""
+    _ROW_HEIGHT_OFFSET = -3
+    """Subtract from the container size to get number of rows to display,
+    accounts for the table header + horizontal scrollbar + displays"""
 
     def watch_rows(self, old_rows: int, new_rows: int) -> None:
         self.render_table_rows()
@@ -118,11 +122,10 @@ class DataViewport(containers.Container):
         msg = f"Cursor: {self.table.cursor_coordinate}; StartRow: {self.start_row}; NumRows: {self.calc_rows_for_viewport_height()}"
         self.query_one(Msg).update(msg)
 
-    def calc_rows_for_viewport_height(self, height: int | None = None):
+    def calc_rows_for_viewport_height(self):
         """Determines number of rows that would fit inside the viewport given a
         height."""
-        if height is None:
-            height = self.content_size.height
+        height = self.content_size.height
 
         return max(height + self._ROW_HEIGHT_OFFSET, 1)
 
@@ -140,7 +143,7 @@ class DataViewport(containers.Container):
         self.render_cursor_msg()
 
     def on_resize(self, event: events.Resize) -> None:
-        self.rows = self.calc_rows_for_viewport_height(event.size.height)
+        self.rows = self.calc_rows_for_viewport_height()
 
     def action_cursor_up(self) -> None:
         """Move cursor up, if we are at the top of the page, move start rown up"""
@@ -155,7 +158,13 @@ class DataViewport(containers.Container):
         """Move cursor down, if we are at the bottom of the page, move start rown down"""
         max_row_coord = self.calc_rows_for_viewport_height() - 1
         if self.table.cursor_coordinate.row >= max_row_coord:
+            # scrolls the veiw down if we are already at the bottom
+            # don't need to worry about going over the number of rows in the frame,
+            # as the table will have 'scrolled' to reveal an empty row at the
+            # bottom, preventing the cursor from exceeding max_row_coord, so this
+            # block doesn't hit
             col = self.table.cursor_coordinate.column
+
             self.start_row = self.start_row + 1
             self.table.move_cursor(row=max_row_coord, column=col)
 
