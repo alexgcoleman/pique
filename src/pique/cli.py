@@ -8,6 +8,7 @@ from polars import datatypes
 from rich.text import Text
 from textual import containers, events
 from textual.app import App, ComposeResult
+from textual.binding import Binding
 from textual.reactive import reactive
 from textual.widgets import DataTable, Footer, Static
 
@@ -45,6 +46,13 @@ class PiqueTable(DataTable):
             scrollbar-gutter: stable;
         }
     """  # need stable gutter to avoid weird off-by-one error
+
+    BINDINGS = [
+        Binding("up,k", "cursor_up", "Cursor Up", show=True),
+        Binding("down,j", "cursor_down", "Cursor Down", show=True),
+        Binding("left,h", "cursor_left", "Cursor Left", show=True),
+        Binding("right,l", "cursor_right", "Cursor Right", show=True),
+    ]
 
 
 class DataViewport(containers.Container):
