@@ -46,9 +46,10 @@ class DataViewport(containers.Container):
     frame: pl.LazyFrame
     rows = reactive(1)
     start_row = reactive(0)
-    # this is a hack for number of rows in the table, should be done programatically
-    # this takes into account the other vertical elements
+
     _ROW_OFFSET = -2
+    """Subtract 2 from the container size to get number of rows to display,
+    accounts for the table header + horizontal scrollbar"""
 
     def watch_rows(self, old_rows: int, new_rows: int) -> None:
         self.render_table()
