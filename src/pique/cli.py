@@ -61,6 +61,8 @@ class DataViewport(containers.Container):
         Binding("l,right", "cursor_right", "Cursor Right", show=True, priority=True),
         Binding("ctrl+u,pageup", "page_up", "Page Up", show=True, priority=True),
         Binding("ctrl+d,pagedown", "page_down", "Page Down", show=True, priority=True),
+        Binding("b", "bottom", "Bottop", show=True, priority=True),
+        Binding("t", "top", "Top", show=True, priority=True),
     ]
 
     _ROW_HEIGHT_OFFSET = -3
@@ -140,6 +142,12 @@ class DataViewport(containers.Container):
     def page_size(self) -> int:
         return self.calc_rows_for_viewport_height()
 
+    @property
+    def max_start_row(self) -> int:
+        """The maximum start_row, leaves room for a blank row at the bottom to
+        indicate the end of data"""
+        return self.data_rows - self.page_size + 1
+
     def on_mount(self) -> None:
         self.rows = self.calc_rows_for_viewport_height()
         self.render_table_columns()
@@ -155,6 +163,12 @@ class DataViewport(containers.Container):
 
     def on_resize(self, event: events.Resize) -> None:
         self.rows = self.calc_rows_for_viewport_height()
+
+    def action_bottom(self) -> None:
+        """Move cursor and viewport to the bottom"""
+        cursor_col = self.table.cursor_coordinate.column
+        self.start_row = self.max_start_row
+        self.table.move_cursor(row=self.page_size, column=cursor_col)
 
     def action_cursor_up(self) -> None:
         """Move cursor up, if we are at the top of the page, move start rown up"""
@@ -203,12 +217,11 @@ class DataViewport(containers.Container):
         """Move the viewport if we are not at the bottom, otherwise move the cursor
         to the bottom"""
         cursor_coord = self.table.cursor_coordinate
+        max_row = self.max_start_row
 
-        max_start_row = self.data_rows - self.page_size
-
-        if self.start_row < max_start_row:
+        if self.start_row < max_row:
             # Moving viewport, preserve the relative cursor postition
-            self.start_row = min(self.start_row + self.page_size - 1, max_start_row)
+            self.start_row = min(self.start_row + self.page_size - 1, max_row)
             self.table.move_cursor(row=cursor_coord.row, column=cursor_coord.column)
         else:
             self.table.action_page_down()
