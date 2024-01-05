@@ -5,11 +5,11 @@ A read-only command line tool for data files
 ## Next to build
 
 -   [x] Lazy polars stuff
--   [ ] Parquet sample
--   [ ] Dataframe stats in ui
+-   [x] Parquet sample
+-   [x] Dataframe stats in ui
 -   [x] Datapolars based scrolling
 -   [ ] Custom scroll bar for data/lazy scrolling
--   [ ] Cache rows outside viewport
+-   [x] Cache rows outside viewport
 -   [ ] Filtering columns on value
 -   [ ] Hiding/showing columns
 -   [ ] Investigate overflow CSS options on PiqueTable/DataTable
