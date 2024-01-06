@@ -49,7 +49,6 @@ class PiqueTable(DataTable):
 
 
 class DataViewport(containers.Container):
-    filename: Path
     engine: Engine
     rows = reactive(1)
     start_row = reactive(0)
@@ -76,9 +75,8 @@ class DataViewport(containers.Container):
         self.log(f"{old_start_row=}, {new_start_row=}")
         self.render_table_rows()
 
-    def __init__(self, filename: Path) -> None:
-        self.filename = filename
-        self.engine = Engine(filepath=self.filename)
+    def __init__(self, engine: Engine) -> None:
+        self.engine = engine
 
         super().__init__()
 
@@ -235,16 +233,19 @@ class DataViewport(containers.Container):
 
 class Pique(App):
     filename: Path
+    engine: Engine
     dark: bool
 
     def __init__(self, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+
         parsed_args = parse_args()
         self.filename = parsed_args.filename
-        super().__init__(*args, **kwargs)
+        self.engine = Engine(filepath=self.filename)
 
     def compose(self) -> ComposeResult:
         """Create child widgets for the app."""
-        yield DataViewport(filename=self.filename)
+        yield DataViewport(engine=self.engine)
 
 
 def valid_filepath(s: str) -> Path:
