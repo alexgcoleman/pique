@@ -61,7 +61,7 @@ class DataViewport(containers.Container):
         Binding("l,right", "cursor_right", "Cursor Right", show=True, priority=True),
         Binding("ctrl+u,pageup", "page_up", "Page Up", show=True, priority=True),
         Binding("ctrl+d,pagedown", "page_down", "Page Down", show=True, priority=True),
-        Binding("b", "bottom", "Bottop", show=True, priority=True),
+        Binding("b", "bottom", "Bottom", show=True, priority=True),
         Binding("t", "top", "Top", show=True, priority=True),
     ]
 
@@ -189,7 +189,7 @@ class DataViewport(containers.Container):
         """Move cursor down, if we are at the bottom of the page, move start rown down"""
         max_row_coord = self.page_size - 1
         if self.table.cursor_coordinate.row >= max_row_coord:
-            # scrolls the veiw down if we are already at the bottom
+            # scrolls the view down if we are already at the bottom
             # don't need to worry about going over the number of rows in the frame,
             # as the table will have 'scrolled' to reveal an empty row at the
             # bottom, preventing the cursor from exceeding max_row_coord, so this
