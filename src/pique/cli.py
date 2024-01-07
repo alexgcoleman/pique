@@ -9,8 +9,14 @@ from rich.text import Text
 from textual import containers, events
 from textual.app import App, ComposeResult
 from textual.binding import Binding
+from textual.coordinate import Coordinate
+from textual.message import Message
 from textual.reactive import reactive
-from textual.widgets import DataTable, Static
+from textual.widgets import (
+    ContentSwitcher,
+    DataTable,
+    Static,
+)
 
 from .engine import Engine
 
@@ -25,7 +31,8 @@ class DTypeFormat:
 DTYPE_STYLE: dict[Type, DTypeFormat] = {
     datatypes.String: DTypeFormat(colour="green", justify="left", overflow="ellipsis"),
     datatypes.Float64: DTypeFormat(colour="magenta", justify="right"),
-    datatypes.Int64: DTypeFormat(colour="blue", justify="center"),
+    datatypes.Int64: DTypeFormat(colour="blue", justify="right"),
+    datatypes.UInt32: DTypeFormat(colour="blue", justify="right"),
 }
 
 
@@ -38,20 +45,138 @@ class PiqueTable(DataTable):
     here to work with the data lazy loading"""
 
     # need stable gutter to avoid weird off-by-one error due to horizontal scrollbar
-    # TODO: investigate overflow CSS
     DEFAULT_CSS = """
         PiqueTable {
             scrollbar-gutter: stable;
-            overflow-y: auto;
-            overflow-x: auto;
         }
     """
+
+    BINDINGS = [
+        Binding("k,up", "cursor_up", "Cursor Up", show=True, priority=True),
+        Binding("j,down", "cursor_down", "Cursor Down", show=True, priority=True),
+        Binding("h,left", "cursor_left", "Cursor Left", show=True, priority=True),
+        Binding("l,right", "cursor_right", "Cursor Right", show=True, priority=True),
+        Binding("ctrl+u,pageup", "page_up", "Page Up", show=True, priority=True),
+        Binding("ctrl+d,pagedown", "page_down", "Page Down", show=True, priority=True),
+        Binding("b", "bottom", "Bottom", show=True, priority=True),
+        Binding("t", "top", "Top", show=True, priority=True),
+    ]
+
+
+class ColumnSelector(PiqueTable):
+    engine: Engine
+    hidden_columns: list[str]
+    column_stats: pl.DataFrame
+
+    _ROW_HEIGHT_OFFSET = -2
+
+    class ColumnVisibilityChanged(Message):
+        name: str
+        is_hidden: bool
+
+        def __init__(self, name: str, is_hidden: bool) -> None:
+            self.name = name
+            self.is_hidden = is_hidden
+            super().__init__()
+
+    def __init__(self, *args, engine: Engine, **kwargs) -> None:
+        self.engine = engine
+        self.column_stats = self.engine.column_stats()
+
+        super().__init__(*args, **kwargs)
+
+        self.hidden_columns = []
+
+    def render_table(self) -> None:
+        self.clear(columns=True)
+
+        stats = self.column_stats
+
+        for col_name in ["column", "is_visible"] + stats.columns[1:]:
+            self.add_column(label=col_name)
+
+        def formatted_row(row_idx: int) -> list[Text]:
+            row = stats[row_idx]
+            col_name = row["column_name"].item()
+
+            dtype_format = DTYPE_STYLE.get(self.engine.schema[col_name], DTypeFormat())
+
+            is_hidden = col_name in self.hidden_columns
+
+            bold_style = "bold" if not is_hidden else ""
+            colour_style = "white" if not is_hidden else "grey46"
+            name_style = bold_style + colour_style
+
+            name_cell = Text(col_name, style=name_style, justify="left")
+
+            is_visible_cell = Text(
+                "visible" if col_name not in self.hidden_columns else "hidden",
+                style=colour_style,
+            )
+
+            dtype_cell = Text(
+                row["dtype"].item(), style=dtype_format.colour, justify="center"
+            )
+
+            count_cells: list[Text] = [
+                Text(str(row[val_type].item()), justify="right")
+                for val_type in ["n_unique", "null_count"]
+            ]
+
+            min_max_cells: list[Text] = [
+                Text(
+                    row[val_type].item(),
+                    style=dtype_format.colour,
+                    justify=dtype_format.justify,
+                    overflow="ellipsis",
+                )
+                for val_type in ["min_value", "max_value"]
+            ]
+
+            return (
+                [name_cell]
+                + [is_visible_cell]
+                + [dtype_cell]
+                + count_cells
+                + min_max_cells
+            )
+
+        for row_idx in range(len(stats)):
+            row = formatted_row(row_idx)
+            self.add_row(*row, height=None)
+
+        self.fixed_columns = 2
+        self.cursor_type = "row"
+
+    def on_data_table_row_selected(self, event: DataTable.RowSelected) -> None:
+        col = str(self.get_cell_at(Coordinate(row=event.cursor_row, column=0)))
+
+        self.toggle_hidden(col)
+        self.move_cursor(row=event.cursor_row)
+
+    def toggle_hidden(self, col_name: str) -> None:
+        is_hidden = col_name in self.hidden_columns
+
+        if is_hidden:
+            self.hidden_columns.remove(col_name)
+        else:
+            self.hidden_columns.append(col_name)
+
+        self.post_message(
+            self.ColumnVisibilityChanged(name=col_name, is_hidden=is_hidden)
+        )
+
+        self.render_table()
+
+    def on_mount(self) -> None:
+        self.render_table()
 
 
 class DataViewport(containers.Container):
     engine: Engine
     rows = reactive(1)
     start_row = reactive(0)
+    hidden_columns: list[str] = reactive([])
 
     BINDINGS = [
         Binding("k,up", "cursor_up", "Cursor Up", show=True, priority=True),
@@ -68,17 +193,17 @@ class DataViewport(containers.Container):
     """Subtract from the container size to get number of rows to display,
     accounts for the table header + horizontal scrollbar + displays"""
 
+    def __init__(self, engine: Engine, **kwargs) -> None:
+        self.engine = engine
+
+        super().__init__(**kwargs)
+
     def watch_rows(self, old_rows: int, new_rows: int) -> None:
         self.render_table_rows()
 
     def watch_start_row(self, old_start_row: int, new_start_row: int) -> None:
         self.log(f"{old_start_row=}, {new_start_row=}")
         self.render_table_rows()
-
-    def __init__(self, engine: Engine) -> None:
-        self.engine = engine
-
-        super().__init__()
 
     @property
     def table(self) -> PiqueTable:
@@ -89,11 +214,13 @@ class DataViewport(containers.Container):
         yield Msg("PENDING")
         yield PiqueTable(zebra_stripes=True, cell_padding=1)
 
+    @property
+    def visible_cols(self) -> list:
+        return [col for col in self.engine.columns if col not in self.hidden_columns]
+
     def render_table_columns(self) -> None:
         self.table.clear(columns=True)
-
-        cols = self.engine.columns
-        self.table.add_columns(*cols)
+        self.table.add_columns(*self.visible_cols)
 
     def render_table_rows(self) -> None:
         if len(self.table.columns) == 0:
@@ -101,7 +228,7 @@ class DataViewport(containers.Container):
 
         self.table.clear(columns=False)
 
-        cols = self.engine.columns
+        cols = self.visible_cols
 
         df = self.engine.view_slice(self.start_row, self.rows)
 
@@ -230,11 +357,24 @@ class DataViewport(containers.Container):
         else:
             self.table.action_page_down()
 
+    def toggle_hidden(self, col_name: str) -> None:
+        is_hidden = col_name in self.hidden_columns
+
+        if is_hidden:
+            self.hidden_columns.remove(col_name)
+        else:
+            self.hidden_columns.append(col_name)
+
+        self.render_table_columns()
+        self.render_table_rows()
+
 
 class Pique(App):
     filename: Path
     engine: Engine
     dark: bool
+
+    BINDINGS = [Binding("c", "switch_content", "Switch")]
 
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
@@ -245,7 +385,31 @@ class Pique(App):
 
     def compose(self) -> ComposeResult:
         """Create child widgets for the app."""
-        yield DataViewport(engine=self.engine)
+        with ContentSwitcher(name="content", initial="data"):
+            yield DataViewport(engine=self.engine, id="data")
+            yield ColumnSelector(engine=self.engine, id="column-selector")
+
+    def action_switch_content(self) -> None:
+        if self.query_one(ContentSwitcher).current == "column-selector":
+            self.focus_data()
+        else:
+            self.focus_selector()
+
+    def focus_selector(self) -> None:
+        self.query_one(ContentSwitcher).current = "column-selector"
+        self.set_focus(self.query_one(ColumnSelector))
+
+    def focus_data(self) -> None:
+        self.query_one(ContentSwitcher).current = "data"
+        self.set_focus(self.query_one(DataViewport))
+
+    def on_column_selector_column_visibility_changed(
+        self, message: ColumnSelector.ColumnVisibilityChanged
+    ) -> None:
+        self.log.warning(f"{self}.on_column_selector_column_visibility_changed")
+        self.log.warning(f"{message=}")
+
+        self.query_one(DataViewport).toggle_hidden(message.name)
 
 
 def valid_filepath(s: str) -> Path:
