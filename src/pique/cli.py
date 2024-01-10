@@ -374,7 +374,10 @@ class Pique(App):
     engine: Engine
     dark: bool
 
-    BINDINGS = [Binding("c", "switch_content", "Switch")]
+    BINDINGS = [
+        Binding("c", "switch_content", "Switch"),
+        Binding("d", "debug_log", "debug log"),
+    ]
 
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
@@ -382,6 +385,9 @@ class Pique(App):
         parsed_args = parse_args()
         self.filename = parsed_args.filename
         self.engine = Engine(filepath=self.filename)
+
+    def action_debug_log(self) -> None:
+        self.log.warning(f"{self.focused=}")
 
     def compose(self) -> ComposeResult:
         """Create child widgets for the app."""
@@ -401,7 +407,7 @@ class Pique(App):
 
     def focus_data(self) -> None:
         self.query_one(ContentSwitcher).current = "data"
-        self.set_focus(self.query_one(DataViewport))
+        self.set_focus(self.query_one(DataViewport).query_one(PiqueTable))
 
     def on_column_selector_column_visibility_changed(
         self, message: ColumnSelector.ColumnVisibilityChanged

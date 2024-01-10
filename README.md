@@ -19,12 +19,13 @@ A read-only command line tool for data files
 -   [ ] Sensible text wrapping/truncation
 -   [ ] Search for value within column/frame
 -   [ ] Change bindings via config file
+-   [ ] Move textual/app code from cli.py to app.py
 
 ## Bugs/look into
 
 ### Major
 
--   [ ] keyboard focus lost when toggling back from ColumnSelector
+-   [x] keyboard focus lost when toggling back from ColumnSelector
 
 ### Minor
 
